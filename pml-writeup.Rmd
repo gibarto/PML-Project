@@ -1,0 +1,55 @@
+---
+title: "Practical Machine Learning Project Writeup"
+author: "Geoff Barto"
+date: "Wednesday, November 19, 2014"
+output: html_document
+---
+When people exercise, they tend to count the number of reps they have done, but less attention is paid to whether the exercise is done correctly for the targeted benefit. To address this, <a href="http://groupware.les.inf.puc-rio.br/har">Ugulino, et al</a>(1) did what they term a Human Activity Recognition study, analyzing the measurements taken by wearable accelerometers when subjects did exercises correctly and incorrectly. Once there is a good dataset for analyzing the different results, it becomes possible to go the other way, looking at accelerometer measurements to determine how an exercise is being done.
+
+For the purposes of this project, we will be using a subset of the data put together for the Coursera Practical Machine Learning course. We begin by loading this data (which our working directory contains). (2)
+
+```{r}
+pml.training <- read.csv("C:/RData/pml/pml-training.csv")
+```
+When this dataset was published, a number of statistical measures were included that are not raw data and not of use to us here. They are removed using grep. At the same time, measures particular to subjects and non-numeric data are also removed. Specifically data for totals, variances, averages, standard deviations, maximums, minimums, amplitudes and skewness were removed, as were all non-numeric columns except the classe variable.
+```{r}
+stat_labels<-"^total_|var_|avg_|stddev_|max_|min_|amplitude_|skewness_" ## string with stat columns
+stat_cols<-grep(stat_labels, colnames(pml.training))
+data_set<-pml.training[,-stat_cols] ## stat columns removed in new data set
+keep_cols<-sapply(data_set, is.numeric) ## identify columns with numeric data
+keep_cols[1:7]<-FALSE ## subject data not needed
+keep_cols[length(keep_cols)]<-TRUE ## final column with classe variable is non-numeric but kept
+data_set<-data_set[,keep_cols] ## unneeded columns dropped from dataset
+```
+In order to make sure we have a functioning model, we will split our known data set into training and testing sets on a 60/40 split.
+```{r}
+library(caret)
+set.seed(123)
+inTrain<-createDataPartition(data_set$classe, p=.6, list=FALSE) ## 60/40 data partition
+training<-data_set[inTrain,]
+testing<-data_set[-inTrain,]
+```
+With the data prepared, we run a random forest on the numerical data to generate a model:
+```{r}
+library(randomForest)
+modelFit<-randomForest(classe~., data=training) ## using the randomForest function directly
+modelFit ## displaying the model
+```
+Figure 1: Model of training data
+
+As can be seen, this gives an OOB estimate of error at .62%.
+
+Next, we will check our model against the test sample we've kept in reserve and perform a confusion matrix to see how it did:
+```{r}
+testingPredict<-predict(modelFit, newdata=testing[,-length(colnames(testing))])
+confusionMatrix(testingPredict, testing$classe)
+```
+Figure 2: Confusion matrix showing model accuracy for predicting the testing set
+
+The overall accuracy of the model for the testing sample is 99.49%, suggesting our out of sample error on the final testing set will be in the same range, around .5-.6%. And, indeed, the use of the prediction model with the data from the course provided pml-testing.csv, 20 out of 20 measurements were correctly identified.
+
+
+
+(1) Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
+
+(2) For purposes of grading, I have left my R-code exposed. This would of course not be echoed in a published write-up.
